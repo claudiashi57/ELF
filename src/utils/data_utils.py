@@ -4,9 +4,20 @@ from typing import Dict, Optional
 import jax
 import jax.numpy as jnp
 import numpy as np
-from datasets import DatasetDict, load_dataset as hf_load_dataset, load_from_disk
-from torch.utils.data import DataLoader
-from torch.utils.data.distributed import DistributedSampler
+
+try:
+    from datasets import DatasetDict, load_dataset as hf_load_dataset, load_from_disk
+except ImportError:  # Optional for unconditional eval / generation-only setups
+    DatasetDict = None
+    hf_load_dataset = None
+    load_from_disk = None
+
+try:
+    from torch.utils.data import DataLoader
+    from torch.utils.data.distributed import DistributedSampler
+except ImportError:  # Optional for unconditional eval / generation-only setups
+    DataLoader = None
+    DistributedSampler = None
 
 from utils.encoder_utils import build_self_attn_cond_masks
 from utils.logging_utils import log_for_0
@@ -63,6 +74,11 @@ def get_dataloader(
     distributed: bool = True,
 ):
     """Create a DataLoader."""
+    if DataLoader is None:
+        raise ImportError(
+            "PyTorch is required for get_dataloader(). Install torch to run "
+            "training or conditional evaluation."
+        )
 
     def collate_fn(batch_list):
         input_ids_list = [np.array(item["input_ids"]) for item in batch_list]
@@ -100,6 +116,10 @@ def get_dataloader(
         drop_last=drop_last, persistent_workers=num_workers > 0,
     )
     if distributed:
+        if DistributedSampler is None:
+            raise ImportError(
+                "PyTorch DistributedSampler is unavailable because torch is not installed."
+            )
         sampler = DistributedSampler(
             dataset, num_replicas=jax.process_count(), rank=jax.process_index(),
             shuffle=shuffle, drop_last=drop_last,
@@ -153,6 +173,11 @@ def load_dataset_split(path: str, dataset_cache_dir=None):
     `load_dataset` silently returns a 1-row dataset of internal metadata. We detect
     that and re-download the repo, then load it via `load_from_disk`.
     """
+    if hf_load_dataset is None or load_from_disk is None:
+        raise ImportError(
+            "The 'datasets' package is required to load dataset splits. "
+            "Install datasets to run training or conditional evaluation."
+        )
     ds = None
     try:
         ds = hf_load_dataset(path, cache_dir=dataset_cache_dir)

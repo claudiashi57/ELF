@@ -10,12 +10,17 @@ import sys
 import time
 from functools import partial
 
-# Initialize JAX distributed BEFORE importing other JAX modules
+# Initialize JAX distributed BEFORE importing other JAX modules.
+# On Slurm, calling initialize() for a single-process multi-GPU run can pin the
+# process to one local device. Only initialize when we actually expect
+# multi-process execution.
 import jax
-try:
-    jax.distributed.initialize()
-except (RuntimeError, ValueError):
-    pass  # Single-host run, or already initialized.
+_world_size = int(os.environ.get("WORLD_SIZE", os.environ.get("SLURM_NTASKS", "1")))
+if _world_size > 1:
+    try:
+        jax.distributed.initialize()
+    except (RuntimeError, ValueError):
+        pass  # Already initialized or not needed in this environment.
 
 # Ensure repo root on sys.path so imports work when run as a script
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
