@@ -166,8 +166,13 @@ def run_training(config):
         x=dummy_x, t=dummy_t, deterministic=True,
         self_cond_cfg_scale=dummy_self_cond_cfg_scale,
     )
+    log_for_0("Calling model.init(...)")
     elf_params = model.init(init_rng, **init_args)
-    log_for_0("\n" + model.tabulate(init_rng, **init_args))
+    log_for_0("model.init(...) complete")
+    if getattr(config, "print_model_summary", True):
+        log_for_0("Calling model.tabulate(...)")
+        log_for_0("\n" + model.tabulate(init_rng, **init_args))
+        log_for_0("model.tabulate(...) complete")
     total_params = sum(x.size for x in jax.tree_util.tree_leaves(elf_params))
     log_for_0(f"ELF parameters: {total_params:,}")
 

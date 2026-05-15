@@ -107,6 +107,7 @@ class Config:
     log_freq: int = 100
     eval_freq: int = 10
     save_freq: float = 100  # Can be fractional (e.g., 0.1 for saving every 0.1 epoch)
+    print_model_summary: bool = True
 
     # Output
     output_dir: str = "./output_dir"
