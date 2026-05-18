@@ -89,6 +89,8 @@ def run_training(config):
     log_for_0(f"Max sequence length: {config.max_length}")
     log_for_0(f"Output dir: {config.output_dir}")
     log_for_0(f"HF Repo ID: {config.hf_repo_id}")
+    log_for_0(f"Resume checkpoint: {config.resume}")
+    log_for_0(f"Init checkpoint: {getattr(config, 'init_checkpoint', None)}")
     log_for_0(f"Batch size per device: {config.batch_size}")
     log_for_0(f"Number of epochs: {config.epochs}")
     log_for_0(f"JAX devices: {jax.device_count()}")
@@ -99,13 +101,14 @@ def run_training(config):
     if config.use_wandb and jax.process_index() == 0:
         wandb_config = {k: getattr(config, k) for k in dir(config) if not k.startswith("_")}
         wandb_tags = config.wandb_tag.split(",") if config.wandb_tag else None
+        wandb_run_id = config.wandb_id or config.wandb_run_name
         wandb.init(
             project=config.wandb_project, entity=config.wandb_entity,
-            name=config.wandb_run_name, id=config.wandb_run_name, resume=config.wandb_resume,
+            name=config.wandb_run_name, id=wandb_run_id, resume=config.wandb_resume,
             tags=wandb_tags, config=wandb_config, dir="/tmp",
             settings=wandb.Settings(start_method="thread"),
         )
-        resume_suffix = f" (resume={config.wandb_resume}, id={config.wandb_run_name})"
+        resume_suffix = f" (resume={config.wandb_resume}, id={wandb_run_id})"
         log_for_0(f"Wandb initialized: {wandb.run.url}{resume_suffix}")
 
     rng = jax.random.PRNGKey(config.seed)
@@ -236,8 +239,22 @@ def run_training(config):
     total_trainable = sum(x.size for x in jax.tree_util.tree_leaves(state.params))
     log_for_0(f"Total trainable parameters: {total_trainable:,}")
 
+    if config.resume and getattr(config, "init_checkpoint", None):
+        raise ValueError("Specify only one of resume or init_checkpoint, not both.")
+
+    if getattr(config, "init_checkpoint", None):
+        init_state, init_step = load_checkpoint(config.init_checkpoint, state)
+        state = state.replace(
+            params=init_state.params,
+            ema_params1=init_state.ema_params1,
+        )
+        log_for_0(
+            f"Initialized model weights from {config.init_checkpoint} "
+            f"(source step {init_step}); optimizer state reset for fresh fine-tuning run."
+        )
+
     # Auto-resume: if no explicit resume path, check output_dir for existing checkpoints
-    if not config.resume:
+    if not config.resume and not getattr(config, "init_checkpoint", None):
         auto_ckpt = find_latest_checkpoint(config.output_dir)
         if auto_ckpt:
             config.resume = config.output_dir

@@ -113,12 +113,14 @@ class Config:
     output_dir: str = "./output_dir"
     hf_repo_id: str = None  # Optional HF repo id to mirror local outputs/checkpoints.
     resume: str = None
+    init_checkpoint: str = None
 
     # Wandb
     use_wandb: bool = False
     wandb_project: str = "ELF"
     wandb_entity: str = None
     wandb_run_name: str = None
+    wandb_id: str = None
     wandb_tag: str = None
     wandb_resume: str = "allow"
 
